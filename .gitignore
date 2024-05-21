@@ -1,0 +1,17 @@
+/.idea
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+test_.json
+output/
+.DS_Store
+wandb
+log_data/
+.vscode
+*.ipynb
+*.npy
+*.jpg
+data/
+preprocessed_data/
+*.csv
+private.yaml
