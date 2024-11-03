@@ -1,10 +1,9 @@
 basic:
-  map_type: standard
-  project: dip_tom
+  project: dip_tom_mtap
   entity: cilab-ma
 
-  last_folder_num: 18
-  save_start_epoch: 7
+  last_folder_num: 60
+  save_start_epoch: 25
   early_stop_num: 4
   e_char_freq: 1
   save_freq: 1
@@ -15,7 +14,6 @@ basic:
 
   num_past_step: 200
   num_curr_step: 40
-  num_board: 81
   board_feat: 35
   num_msg: 40
   msg_feat: 45
@@ -24,40 +22,44 @@ basic:
   num_internal: 1
   internal_feat: 3
   loc_feat: 35
-  map_tact_dim: 120
   internal_dim: 3
-  src_dim: 81
   send_dim: 43
 
 oracle:
-  num_data_per_loader : 18
-  char_output_dim: 2
+  num_data_per_loader : 4
+  char_output_dim: 32
   order_output_dim: 16
   board_output_dim: 16
   message_output_dim: 16
+  query_output_dim: 128
+  lstm_hidden_dim: 1024
   input_infos: {"use_past": False, "use_cur": True, "use_internal": True, "agent_info": True}
 
 only_lstm:
-  num_data_per_loader : 18
-  char_output_dim: 8
+  num_data_per_loader : 4
+  char_output_dim: 32
   order_output_dim: 16
   board_output_dim: 16
+  query_output_dim: 128
+  lstm_hidden_dim: 1024
   input_infos: {"use_past": False, "use_cur": True, "use_internal": False, "agent_info": True}
 
 tomnet:
-  num_data_per_loader : 8
-  char_output_dim: 8
+  num_data_per_loader : 4
+  char_output_dim: 32
   order_output_dim: 16
   board_output_dim: 16
   message_output_dim: 16
+  query_output_dim: 128
+  lstm_hidden_dim: 1024
   input_infos: {"use_past": True, "use_cur": True, "use_internal": False, "agent_info": True}
 
 attention:
-  num_data_per_loader : 8
-  char_output_dim: 8
+  num_data_per_loader : 4
+  char_output_dim: 32
   order_output_dim: 16
   board_output_dim: 16
   message_output_dim: 16
+  query_output_dim: 128
+  lstm_hidden_dim: 1024
   input_infos: {"use_past": True, "use_cur": True, "use_internal": False, "agent_info": True}
-
-

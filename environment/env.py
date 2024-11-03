@@ -1,10 +1,9 @@
 
 # This is new env after ICML workshop for optimizing
 
-import gym, logging, copy, sys, os
-from gym.utils import seeding
+import gym, logging, copy, sys, os, yaml
+from gym import spaces
 from diplomacy import Game, Map, Power
-from diplomacy.engine.message import Message
 from environment.l1_negotiation import Negotiation
 import numpy as np
 import torch as tr
@@ -12,7 +11,18 @@ from environment.utils import power2loc, loc2power, loc2unit_type
 import time
 
 class PressDiplomacyEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, config_path):
+        with open(config_path) as f:
+            yd = yaml.load(f, Loader=yaml.FullLoader)
+
+        self.game_type = yd['game_type']
+        self.num_step = yd['num_step']
+        self.max_action = yd['max_action']
+        self.num_agent = yd['num_agent']
+        self.num_loc = yd['num_loc']
+        self.powers = sorted(yd['powers'])
+        self.action_space = spaces.Discrete(5)
+        self.observation_space = spaces.Discrete(5)
         self.game = None
         self.curr_seed = 0
         self.modified_phase = ['S', 'R', 'O']
@@ -20,8 +30,11 @@ class PressDiplomacyEnv(gym.Env):
         self.msg_parser = Negotiation()
         self.prev_order_clear = False
 
-    def set_game_type(self, game_type):
-        self.game_type = game_type
+    def get_powers(self):
+        return copy.deepcopy(self.powers)
+
+    def get_num_agent(self):
+        return copy.deepcopy(self.num_agent)
 
     def current_year(self):
         curr_phase = self.game.get_current_phase()
@@ -35,6 +48,8 @@ class PressDiplomacyEnv(gym.Env):
         return ''
 
     def is_done(self):
+        if self.current_year() - self.start_year > self.num_step / 2:
+            results = self.game.draw()
         return self.game.is_game_done
 
     def _change_nego(self, name):
@@ -93,12 +108,42 @@ class PressDiplomacyEnv(gym.Env):
         if self.use_torch:
             tr.random.seed(seed)
 
+    def get_sorted_locs(self, map_object):
+        """ Returns the list of locations for the given map in sorted order, using topological order
+            :param map_object: The instantiated map
+            :return: A sorted list of locations
+            :type map_object: diplomacy.Map
+        """
+
+        locs = [l.upper() for l in map_object.locs if map_object.area_type(l) != 'SHUT']
+        sorted_locs = sorted(locs)
+        return sorted_locs
+
+    def get_adjacency_matrix(self, map_name='standard'):
+
+        # Finding list of all locations
+        current_map = Map(map_name)
+        locs = self.get_sorted_locs(current_map)
+        adjacencies = np.zeros((len(locs), len(locs)), dtype=np.bool)
+
+        # Building adjacencies between locs
+        # Coasts are adjacent to their parent location (without coasts)
+        for i, loc_1 in enumerate(locs):
+            for j, loc_2 in enumerate(locs):
+                if current_map.abuts('A', loc_1, '-', loc_2) or current_map.abuts('F', loc_1, '-', loc_2):
+                    adjacencies[i, j] = 1
+                if loc_1 != loc_2 and (loc_1[:3] == loc_2 or loc_1 == loc_2[:3]):
+                    adjacencies[i, j] = 1
+
+        return adjacencies
+
     def step(self, dummy):
         obs, rew, done = None, None, None #TODO
         if self.is_nego:
             infos = self.nego_process()
         else:
             infos = self.process()
+        done = self.is_done()
         return obs, rew, done, infos
 
     def submit(self, actions, other_infos):
@@ -109,27 +154,29 @@ class PressDiplomacyEnv(gym.Env):
             self.order_step(actions, other_infos)
 
     def order_step(self, agent_orders, prev_order_clear):
-        power_name, orders = agent_orders
+        power_name, orders_with_info = agent_orders
         if self.game.get_current_phase()[-1] == 'R':
-            orders = [order.replace(' - ', 'R') for order in orders]
-        orders = [order for order in orders if order != 'WAIVE']
+            # 04/24 HC: 이렇게 처리하는게 맞는지 확인(SM)
+            orders_with_info = [[order[0].replace(' - ', 'R'), [], order[1]] for order in orders_with_info]
+        orders = [order[0] for order in orders_with_info if order != 'WAIVE']
         self.game.set_orders(power_name, orders, expand=False)
-        self.prev_orders[power_name] = orders # if we can get order in get_state(), this will be removed.
+        self.prev_orders[power_name] = orders_with_info # if we can get order in get_state(), this will be removed.
 
         self.prev_order_clear = prev_order_clear
 
     def nego_step(self, messages, agreed_orders):
         for message in messages:
             if self.infos['name'][-2] == 'R':
-                cont, msg_ind = message
+                cont, msg_ind, true_response_prob = message
                 _, _, _, _, sender, receiver, cont = self.msg_parser.parse(cont)
                 cont = dict(sender=sender, message=cont)
-                self.tmp_messages[receiver].append((cont, msg_ind + 1))
+                self.tmp_messages[receiver].append((cont, msg_ind + 1, true_response_prob))
             else:
                 _, _, _, _, sender, receiver, message = self.msg_parser.parse(message)
                 message = dict(sender=sender, message=message)
-                self.tmp_messages[receiver].append((message, self.msg_ind))
+                self.tmp_messages[receiver].append((message, self.msg_ind, None))
                 self.msg_ind += 2
+        # print([f'{k}: {len(v)}'for k, v in self.tmp_messages.items()])
             #self.game.add_message(Message(sender=sender,
             #                              recipient=receiver,
             #                              message=message,
@@ -142,26 +189,27 @@ class PressDiplomacyEnv(gym.Env):
         loc_keys = self.map.loc_abut
         area_type = {l.upper():self.map.loc_type[l] for l in locs_lower}
         loc_abuts = {k.upper(): [v.upper() for v in vals if v in locs_lower] for k, vals in loc_keys.items() if k in locs_lower}
-        self.static_infos = dict(locs=locs, loc_abut=loc_abuts,
-                                scs=scs, area_type=area_type,
-                                all_units=['{} {}'.format(unit_type, loc.upper())
-                                            for unit_type in 'AF' for loc in locs_lower
+        self.static_infos = dict(locs=locs,
+                                 loc_abut=loc_abuts,
+                                 scs=scs,
+                                 area_type=area_type,
+                                 all_units=['{} {}'.format(unit_type, loc.upper()) for unit_type in 'AF' for loc in locs_lower
                                             if self.map.is_valid_unit('{} {}'.format(unit_type, loc.upper()))],
                                 powers=self.powers,
-                                abut_list={loc.upper(): [abut.upper() for abut in
-                                                          self.map.abut_list(loc.upper(), incl_no_coast=True) if abut in locs_lower]
-                                            for loc in locs_lower})
+                                abut_list={loc.upper(): [abut.upper() for abut in self.map.abut_list(loc.upper(), incl_no_coast=True)
+                                                         if abut in locs_lower] for loc in locs_lower},
+                                game_type=self.game_type)
 
     def reset(self):
-        #if 'environment' not in os.getcwd():
-        #    sys.path.append(os.getcwd()+'/environment')
-        if self.game_type == "standard":
-            self.game = Game(meta_rules=['PRESS'])
-        elif self.game_type == "small":
-            if 'environment' not in os.getcwd():
-                self.game = Game(meta_rules=['PRESS'], map_name="./environment/small.map")
-            else:
-                self.game = Game(meta_rules=['PRESS'], map_name="small.map")
+        map_name = "./environment/maps/{}.map".format(self.game_type)
+
+        if not os.path.isfile(map_name):
+            print("Error : There are no exist {} map".format(self.game_type))
+            sys.exit()
+
+        self.game = Game(meta_rules=['PRESS'], map_name=self.game_type)
+
+        self.start_year = self.current_year()
         self.powers = self.game.powers
         self.map = Map(self.game.map.name)
         self._make_static_infos()
@@ -190,9 +238,6 @@ class PressDiplomacyEnv(gym.Env):
         self.message_pair = {}
         self.infos = copy.deepcopy(infos)
         return obs, infos,
-
-    def get_powers(self):
-        return self.game.powers.keys()
 
     def get_saved_game(self):
         pass

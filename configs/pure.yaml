@@ -1,0 +1,12 @@
+game_type: pure
+num_agent: 7
+num_loc: 7
+max_action: 7
+num_step: 23  # TODO
+num_map_tact: 7
+powers: ['AUSTRIA', 'ENGLAND', 'FRANCE', 'GERMANY', 'ITALY', 'RUSSIA', 'TURKEY']
+board_feat : 35
+order_feat : 33
+msg_feat : 45
+num_past_step : 23
+curr_send : 43

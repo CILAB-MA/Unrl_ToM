@@ -27,10 +27,10 @@ def make_weights(num_agent):
     return population_weights
 
 
-def save_log_data(data, base_dir, name, eval=None):
+def save_log_data(sampled_weights, shuffle, epi_log, base_dir, name, eval=None):
     make_dirs(base_dir)
     with open(base_dir + name, "wb") as f:
-        pickle.dump(data, f)
+        np.savez_compressed(f, sampled_weights=sampled_weights, shuffle=shuffle, epi_log=epi_log)
 
 
 def save_data(npy_data, is_train, base_dir, eval=None):

@@ -1,0 +1,12 @@
+game_type: modern
+num_agent: 10
+num_loc: 143
+max_action: 64
+num_step: 60  # TODO
+num_map_tact: 220
+powers: ['BRITAIN', 'EGYPT', 'FRANCE', 'GERMANY', 'ITALY', 'POLAND', 'RUSSIA', 'SPAIN', 'TURKEY', 'UKRAINE']
+board_feat : 44
+order_feat : 311
+msg_feat : 60
+num_past_step : 60
+curr_send : 58

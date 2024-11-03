@@ -1,0 +1,7 @@
+game_type: known_world_901
+num_agent: 16
+num_loc: 281
+max_action: 109
+num_step: 200  # TODO
+num_map_tact: 407
+powers: ['ARABIA', 'AXUM', 'BYZANTINUM', 'CHINA', 'DENMARK', 'EGYPT', 'FRANCE', 'GERMANY', 'INDIA', 'KHAZARIA', 'NEUTRALSTATE', 'RUSSIA', 'SPAIN', 'SRIVIJAYA', 'TURAN', 'WAGADU']

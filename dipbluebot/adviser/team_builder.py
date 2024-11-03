@@ -18,7 +18,7 @@ class AdviserTeamBuilder(Adviser):
         _, _, order_type, _, _ = self.order.parse_dipgame(advise, obs['loc2power'])
         needs_support = infos["needs_support"]
 
-        if order_type == "MTO":
+        if order_type == "HLD" or order_type == "MTO" or  order_type == "CVY_MOVE":
             if advise in needs_support.keys():
                 if len(needs_support[advise]) > 0:
                     return self.weight + 1

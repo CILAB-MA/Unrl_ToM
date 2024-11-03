@@ -53,20 +53,21 @@ class AdviserDumbBot:
         now_phase = self.obs["name"]  # ex) S1901M
 
         if now_phase[0] == "S":
-            self.calc_destination_value(self.m_spr_prox_weight, 1000, 1000)
+            self.calc_destination_value(self.m_spr_prox_weight, 1000, 1000, 10000)
         elif now_phase[0] == "F":
-            self.calc_destination_value(self.m_fall_prox_weight, 1000, 1000)
+            self.calc_destination_value(self.m_fall_prox_weight, 1000, 1000, 10000)
         elif now_phase[0] == "W":
             if len(self.obs["centers"][self.me]) >= len(self.controlled_regions):
                 self.calculate_WIN_destination_value(self.m_build_prox_weight, 1000)
             else:
                 self.calculate_WIN_destination_value(self.m_rem_prox_weight, 1000)
 
-    def calc_destination_value(self, prox_weight, strength_weight, competition_weight):
+    def calc_destination_value(self, prox_weight, strength_weight, competition_weight, empty_province_weight):
         # Destination value is computed by two parts:
         # 1. weighted sum of proximity values
         # 2. balance between competition and strength if not winter
         # 3. add defense value if winter
+        # 4. add weight the empty province
 
         self.dest_unit_value = {unit: 0 for unit in self.proximity[0]}
 
@@ -74,6 +75,7 @@ class AdviserDumbBot:
             self.dest_unit_value[unit] = sum(prox_weight[prox_ix] * self.proximity[prox_ix][unit] for prox_ix in range(10))
             self.dest_unit_value[unit] += strength_weight * self.strength_value[unit[2:5]]
             self.dest_unit_value[unit] -= competition_weight * self.competition_value[unit[2:5]]
+            self.dest_unit_value[unit] += empty_province_weight * self.empty_provinces[unit[2:5]]
 
         self.sorted_units = self._sort_by_dest_value(self.static_dict["all_units"], self.dest_unit_value)
 
@@ -97,12 +99,13 @@ class AdviserDumbBot:
     def find_coasts(self, province):  # game.map.find_coasts(loc)
         loc_with_coasts = [province]
 
-        if "BUL" in province:
-            loc_with_coasts = ['BUL/EC', 'BUL/SC', 'BUL']
-        elif "SPA" in province:
-            loc_with_coasts = ['SPA/NC', 'SPA/SC', 'SPA']
-        elif "STP" in province:
-            loc_with_coasts = ['STP/NC', 'STP/SC', 'STP']
+        if self.static_dict["game_type"] == "standard" or self.static_dict["game_type"] == "small":
+            if "BUL" in province:
+                loc_with_coasts = ['BUL/EC', 'BUL/SC', 'BUL']
+            elif "SPA" in province:
+                loc_with_coasts = ['SPA/NC', 'SPA/SC', 'SPA']
+            elif "STP" in province:
+                loc_with_coasts = ['STP/NC', 'STP/SC', 'STP']
 
         return loc_with_coasts
 
@@ -231,6 +234,10 @@ class AdviserDumbBot:
                     self.strength_value[loc] = n_adjacent_units
                 else:
                     self.competition_value[loc] = max(self.competition_value[loc], n_adjacent_units)
+
+        '''add empty_provinces'''
+        self.empty_provinces = {key: 1 if value is None else 0 for key, value in self.obs["loc2power"].items()}
+
     def calculate_adjacent_unit_counts(self):
         provinces = [loc for loc in self.obs["loc2power"].keys() if '/' not in loc]
         adjacent_unit_counts = {loc: {power: set() for power in self.static_dict["powers"]} for loc in provinces}

@@ -1,0 +1,7 @@
+game_type: world
+num_agent: 17
+num_loc: 214
+max_action: 86
+num_step: 67
+num_map_tact: 313
+powers: ['ARGENTINA', 'BRAZIL', 'CHINA', 'EUROPE', 'FROZENANTARCTICA', 'GHANA', 'INDIA', 'KENYA', 'LIBYA', 'NEAREAST', 'OZ', 'PACIFICRUSSIA', 'QUEBEC', 'RUSSIA', 'SOUTHAFRICA', 'UNITEDSTATES', 'WESTERNCANADA']

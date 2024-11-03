@@ -20,26 +20,85 @@ class AdviserRelationController(Adviser):
         unit_type, unit_loc, order_type, src_infos, dst_infos = self.order.parse_dipgame(advise, obs['loc2power'])
 
         dest = self.get_final_destination(advise, obs['loc2power'])
-        ratio = infos["effective_ratio"]
+        ratio = infos["ratio"]
 
-        value = 0
+        value = 0.5
+        me_support_value = 0.5
 
-        # move, sup 일 때 value 에 ratio 반영
-        '''
-        if dest != None:
-            victim = obs["loc2power"][dest]
-            if victim != None and victim != self.me:
-                if order_type == "MTO":
-                    value = (-4) * (ratio[victim] - 2)
-                elif order_type == "SUPMTO" or order_type == "SUP" or order_type == "CVY":
-                    value = 4 * ratio[victim]
-        '''
+        # ratio 는 -1~1 사이
+        if order_type == "HLD":
+            value = 0.5
+        elif order_type == "MTO":
+            victim = dst_infos[1]
+            if victim is None:
+                value = 0.5
+            elif victim == self.me:
+                return 0
+            else:
+                value -= 0.5 * ratio[victim]
+        elif order_type == "SUP":
+            whom_sup = src_infos[1]  # 내 sup를 받는 나라
+            if whom_sup is None:
+                value = 0
+            else:
+                value += 0.5 * ratio[whom_sup]
+                if whom_sup == self.me:
+                    return me_support_value
+        elif order_type == "SUPMTO":
+            whom_sup = src_infos[1]  # 내 sup를 받는 나라
+            victim = dst_infos[1]  # whom_sup가 가는 지역에 이미 있는 나라 (whom_sup가 공격하는 나라)
+            if whom_sup == self.me:
+                return me_support_value
+            if whom_sup is None:
+                value = 0
+            elif victim is None:
+                value += 0.5 * ratio[whom_sup]
+            elif victim == self.me:
+                return 0
+            elif victim == whom_sup:  # 있을지는 모르겠지만 로직에 확신이 없어서. 원래는 여기에 아무것도 걸리지 않아야 함
+                return 0
+            else:
+                value += 0.25 * (ratio[whom_sup] - ratio[victim])
+        elif order_type == "CVY":  # SUPMTO와 같음
+            whom_sup = src_infos[1]
+            # 내 sup를 받는 나라
+            victim = dst_infos[1]  # whom_sup가 가는 지역에 이미 있는 나라 (whom_sup가 공격하는 나라)
+            if whom_sup == self.me:
+                return me_support_value
+            if whom_sup is None:
+                value = 0
+            elif victim is None:
+                value += 0.5 * ratio[whom_sup]
+            elif victim == self.me:
+                return 0
+            elif victim == whom_sup:  # 있을지는 모르겠지만 로직에 확신이 없어서. 원래는 여기에 아무것도 걸리지 않아야 함
+                return 0
+            else:
+                value += 0.25 * (ratio[whom_sup] - ratio[victim])
+        elif order_type == "CVY_MOVE":  # MTO 와 같음
+            # 'A CON - BUL VIA' 이런 식인데, cvy 받아서 움직일 애가 move 대신, cvy_move라고 명시하는듯.
+            # con이 bul로 갈거다. 어떤 해군의 도움을 받아서
+            victim = dst_infos[1]
+            if victim is None:
+                value = 0.5
+            elif victim == self.me:
+                return 0
+            else:
+                value -= 0.5 * ratio[victim]
+        elif order_type == "DSB":
+            value = 0.5
+        elif order_type == "RTO":
+            value = 1  # TODO retreat phase 에만 나오는 것이 맞는지 확인
+        elif order_type == "BLD":
+            value = 1
+        elif order_type == "WVE":
+            value = 0
+
         # agreed order value 에 ratio 반영
         agreed_orders = infos["agreed_orders"]
         if agreed_orders != {}:
             for order, power in agreed_orders.items():
                 # agreed_orders = {"order": "power", "order": "power"}
                 if order == advise:
-                    value += 4 * ratio[power]
-
+                    value += 0.5 * ratio[power]
         return value

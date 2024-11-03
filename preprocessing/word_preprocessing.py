@@ -92,17 +92,16 @@ class MessageMaker:
         all_msg = np.zeros((40, self.num_agent * 5 + 8 + 2), dtype=np.int8)
         for k, vs in messages.items():
             sorted_messages += vs
-
         # private message
         sorted_messages = sorted(sorted_messages, key=lambda x : x[1])
-
         messages_send = sorted_messages[0::2]
         messages_recv = sorted_messages[1::2]
         cnt = -1
-        me_send = np.zeros(40, dtype=np.int8)
+        me_send = np.full(40, -1, dtype=np.int8)
+        msg_probs = np.zeros(40, dtype=np.float16)
         for send, recv in zip(messages_send, messages_recv):
-            send_msg, _ = send
-            recv_msg, _ = recv
+            send_msg, msg_ind, _ = send
+            recv_msg, _, msg_prob = recv
             send_msg = send_msg['message']
             recv_msg = recv_msg['message']
             # parsing message
@@ -116,58 +115,55 @@ class MessageMaker:
             receiver_ind = self.powers.index(receiver1)
             nego_ind1 = self.nego_lang.index(nego_l1)
             nego_ind2 = self.nego_lang.index(nego_l2)
+            if (sender1 in [me, other]) and (receiver1 in [me, other]):
+                # print('RAW MSG' ,msg_ind, recv_msg, msg_prob)
+                send_msg_state = np.zeros(self.num_agent * 5 + 8, dtype=np.int8)
+                recv_msg_state = np.zeros(2, dtype=np.int8)
+                # put in the sender, receiver
+                send_msg_state[sender_ind] = 1
+                send_msg_state[receiver_ind + self.num_agent] = 1
+                cnt += 1
 
-            if (sender_ind not in [me, other]) or (receiver_ind not in [me, other]):
-                continue
-            send_msg_state = np.zeros(self.num_agent * 5 + 8, dtype=np.int8)
-            recv_msg_state = np.zeros(2, dtype=np.int8)
+                # put the nego
+                send_msg_state[nego_ind1 + 2 * self.num_agent] = 1
+                recv_msg_state[nego_ind2 - 1] = 1
 
-            # put in the sender, receiver
-            send_msg_state[sender_ind] = 1
-            send_msg_state[receiver_ind + 7] = 1
+                # put the peace
+                if conts1[0] == 'PEACE':
+                    powers = conts1[1].split(',')
+                    for p in powers:
+                        peace_ind = self.powers.index(p)
+                        send_msg_state[peace_ind + 2 * self.num_agent + 3] = 1
 
-            cnt += 1
+                # put the peace, enemy
+                elif conts1[0] == 'ALLIANCE':
+                    allies = conts1[1].split(',')
+                    enemies = conts1[2].split(',')
+                    for a in allies:
+                        ally_ind = self.powers.index(a)
+                        send_msg_state[ally_ind + 2 * self.num_agent + 3] = 1
 
-            # put the nego
-            send_msg_state[nego_ind1 + 14] = 1
-            recv_msg_state[nego_ind2 - 1] = 1
+                    for e in enemies:
+                        enemy_ind = self.powers.index(e)
+                        send_msg_state[enemy_ind + 3 * self.num_agent + 3] = 1
 
-            # put the peace
-            if conts1[0] == 'PEACE':
-                powers = conts1[1].split(',')
-                for p in powers:
-                    peace_ind = self.powers.index(p)
-                    send_msg_state[peace_ind + 17] = 1
+                # put the order, target
+                elif conts1[0] == 'DO':
+                    _, _, order_type, _, dst_infos = self.order_parser.parse(conts1[1], loc2power)
+                    order_ind = self.orders.index(order_type)
+                    if dst_infos[1] != None:
+                        dst_ind = self.powers.index(dst_infos[1])
+                    else:
+                        dst_ind = self.num_agent
+                    send_msg_state[order_ind + 4 * self.num_agent + 3] = 1
+                    send_msg_state[dst_ind + 4 * self.num_agent + 7] = 1
 
-            # put the peace, enemy
-            elif conts1[0] == 'ALLIANCE':
-                allies = conts1[1].split(',')
-                enemies = conts1[2].split(',')
-                for a in allies:
-                    ally_ind = self.powers.index(a)
-                    send_msg_state[ally_ind + 17] = 1
-
-                for e in enemies:
-                    enemy_ind = self.powers.index(e)
-                    send_msg_state[enemy_ind + 24] = 1
-
-            # put the order, target
-            elif conts1[0] == 'DO':
-                _, _, order_type, _, dst_infos = self.order_parser.parse(conts1[1], loc2power)
-                order_ind = self.orders.index(order_type)
-                if dst_infos[1] != None:
-                    dst_ind = self.powers.index(dst_infos[1])
-                else:
-                    dst_ind = 7
-                send_msg_state[order_ind + 31] = 1
-                send_msg_state[dst_ind + 35] = 1
-
-            if sender_ind == me:
-                me_send[cnt] = 1
-            msg_state = np.concatenate([send_msg_state, recv_msg_state])
-            all_msg[cnt] = msg_state
-
-        return all_msg, me_send.sum(), me_send
+                if sender1 == me:
+                    me_send[cnt] = msg_ind
+                msg_state = np.concatenate([send_msg_state, recv_msg_state])
+                all_msg[cnt] = msg_state
+                msg_probs[cnt] = msg_prob.astype(np.float16)
+        return all_msg, me_send.sum() + 40, me_send, msg_probs
 
     def inverse_nlp_message(self, message):
         message_word = [self.dicts[m] for m in message if not m == -1]

@@ -2,10 +2,13 @@ from gym import Wrapper
 from diplomacy import Game
 import os, sys
 sys.path.append(os.getcwd())
+sys.path.append("/app/Dip_ToM/")
 import copy
 import numpy as np
+import pandas as pd
 import gym
-
+import yaml
+import argparse
 from dipbluebot.dipblue import DipBlue
 from environment.get_state import Np_state
 from environment.l1_negotiation import Negotiation
@@ -30,7 +33,7 @@ class PressDiplomacyWrapper(Wrapper):
 
     @property
     def current_year(self):
-        return self.env.current_year
+        return copy.deepcopy(self.env.current_year)
 
     @property
     def game_id(self):
@@ -40,7 +43,15 @@ class PressDiplomacyWrapper(Wrapper):
 
     @property
     def is_done(self):
+        start_year = self.start_year
+        curr_year = self.current_year()
+        if curr_year - start_year > self.env.num_step:
+            self.env.game.draw()
         return self.env.is_done()
+
+    def set_game_type(self, game_type, num_step):
+        self.env.game_type = game_type
+        self.num_step = num_step
 
     def process(self, **kwargs):
         return self.env.process(**kwargs)
@@ -74,10 +85,9 @@ class PressDiplomacyWrapper(Wrapper):
         self.me = me
         self.other = other
         self.obss, self.infos = self.env.reset()
-        self.time = 0
         self.agents = {power: DipBlue(self.static_infos, power, weights=weight) for power, weight in
                     zip(list(self.static_infos['powers']), weights)}
-
+        self.start_year = self.current_year()
         _ = self._process_one_phase()
 
         board_state = self.np_state.prev_board_state_maker(self.prev_info)
@@ -167,79 +177,126 @@ def make_one_weight(num_agent, feature_dim, others_constant=1.0):
     return props
 
 
-def generate_weights(num_agents, num_adviser=4):
-    weights = np.random.rand(num_agents, num_adviser)
+def generate_weights(num_agents, num_adviser=2):
+    map_weights = np.random.rand(num_agents, 1)
+    relation_weights = 1 - map_weights
+    weights = np.column_stack([map_weights, relation_weights])
 
-    return weights * 2 - 1
+    return weights
 
 
-def test_assign_players(game_type):
+def test_assign_players():
     env = gym.make('PressDiplomacyEnv-v0')
-    env.game_type = game_type
-    if game_type == "standard":
-        powers = ['FRANCE', 'AUSTRIA', 'GERMANY', 'RUSSIA', 'ITALY', 'TURKEY', 'ENGLAND']
-        weights = generate_weights(7)
-    elif game_type == "small":
-        powers = ['FRANCE', 'GERMANY', 'ITALY']
-        weights = generate_weights(3)
+
+    powers = env.get_powers()
+    weights = generate_weights(env.get_num_agent())
     env.reset()
-    players = {p:DipBlue(env.static_infos, me=p, weights=w) for p, w in zip(powers, weights)}
+    players = {p: DipBlue(env.static_infos, me=p, weights=w) for p, w in zip(powers, weights)}
     obs, infos = env.reset()
     import time
     start =time.time()
     count_step=0
     parser = Negotiation()
+    prev_orders = {p:[] for p in powers}
+    num_same_order = 0
+    start_year = int(infos['name'][1:5])
+    info_list = []
     while env.is_done() is False:
         count_step += 1
         # print("-------------------------------------------------------------------------------------------------------------------")
-        #print(infos['name'])
-
+        # print(infos['name'])
         # print("-------------------------------------------------------------------------------------------------------------------")
+        if num_same_order > len(powers) * args.repeat_num:
+            break
+        # print('SAME ORDER', num_same_order)
         if not env.is_nego:
-            #start = time.time()
+            # start = time.time()
+            # print("-------------------------------------------------------------------------------------------------------------------")
             for power in powers:
                 power_orders, _, prev_order_clear = players[power].act(infos)
-                #power_orders = [random.choice(valid_actions[loc]) for loc in
+                if (infos['name'][-1] == 'M') and (infos['name'][0] == 'F'):
+                    # print(infos['name'], power, prev_orders[power], power_orders)
+                    if power_orders in prev_orders[power]:
+                        num_same_order += 1
+                    else:
+                        num_same_order = 0
+                        prev_orders[power].append(power_orders)
+                        prev_orders[power] = prev_orders[power][-args.pattern_num:]
+                # power_orders = [random.choice(valid_actions[loc]) for loc in
                 #                env.game.get_orderable_locations(power)]
                 env.submit((power, power_orders), prev_order_clear)
-                # print(power, power_orders)
-                if infos['name'][-1] == 'M':
-                    print(len(power_orders), infos['name'])
+
+                # if infos['name'][-1] == 'M':
+                #     print(len(power_orders), infos['name'])
             obs, rew, dones, infos = env.step(None)
-            #print('Order Iteration :',time.time() - start)
+            info_list.append(infos['name'])
+            # print('Order Iteration :',time.time() - start)
         else:
-            #start = time.time()
+            # start = time.time()
+            # print("negos")
+            # print("-------------------------------------------------------------------------------------------------------------------")
             for power in powers:
                 negos, agreed_orders, _ = players[power].act(infos)
                 env.submit(negos, agreed_orders)
                 # print("power : ", power)
-                # print_nego=[]
-                # for i in range(len(negos)):
-                #     if infos['name'][-2:] == "RM":
-                #         msg = negos[i][0]
-                #     else:
-                #         msg = negos[i]
-                #     if parser.parse(msg)[3][0] != "ALLIANCE":
-                #         print_nego.append(negos[i])
-                # print("negos : ", print_nego)
+                print_nego=[]
+                for i in range(len(negos)):
+                    if infos['name'][-2:] == "RM":
+                        msg = negos[i][0]
+                    else:
+                        msg = negos[i]
+                    if parser.parse(msg)[3][0] != "ALLIANCE":
+                        print_nego.append(negos[i])
+                # print("negos : ", power, print_nego)
                 # print("agreed_orders : ", agreed_orders)
             obs, rew, done, infos = env.step(None)
-            #print('Nego Iteration :',time.time() - start)
+            info_list.append(infos['name'])
+            # print('Nego Iteration :',time.time() - start)
         # if env.game.render(incl_orders=True) != None:
-        #     with open('./output/{}_{}.svg'.format(count_step, infos['name']), 'w') as f:
+        #     with open('output/{}_{}.svg'.format(count_step, infos['name']), 'w') as f:
         #         f.write(env.game.render(incl_orders=True))
+    if infos['name'] == "COMPLETED":
+        end_year = int(str(info_list[-2:-1])[3:7])
+    else:
+        end_year = int(infos['name'][1:5]) + 1
     print('One Game  Iteration :', time.time() - start)
-
+    print('year_length', end_year - start_year)
+    print('end_year', end_year)
+    print('start_year', start_year)
+    return int(end_year - start_year)
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    # standard, small, ancmed, pure, clonial, empire, known_world_901, modern, world
+    parser.add_argument('--game_type', '-gt', type=str, default="standard")
+    parser.add_argument('--test_num', '-tn', type=int, default=100)
+    parser.add_argument('--repeat_num', '-rn', type=int, default=3)
+    parser.add_argument('--pattern_num', '-pn', type=int, default=3)
+    parser.add_argument("--out_path", "-op", type=str, default="./output/")
+    args = parser.parse_args()
+
     #test_dummy_players()
     from gym.envs.registration import register
+    config_path = "./configs/{}.yaml".format(args.game_type)
     print(sys.path)
-
     register(
         id='PressDiplomacyEnv-v0',
-        entry_point='environment.env:PressDiplomacyEnv')
+        entry_point='environment.env:PressDiplomacyEnv',
+        kwargs={'config_path':config_path})
 
-    game_type = "standard"  # standard, small
-    test_assign_players(game_type)
+    game_type = args.game_type
+    year_length = []
+    test_num = args.test_num
+    for _ in range(test_num):
+        year_length.append(test_assign_players())
+
+    print("game_type :", game_type)
+    print("total_year: ", year_length)
+    print("game_avg_year : {}, game_std_year : {}, game_max_year : {}".format(np.mean(year_length), np.std(year_length), np.max(year_length)))
+    print("final_game_year : {} ".format( np.mean(year_length) + np.std(year_length)) )
+    year_length_pd = pd.DataFrame(year_length)
+    if not os.path.exists("./output"):
+        os.makedirs("./output")
+    year_length_pd.to_csv("./output/{}_years_info.csv".format(game_type))
+
 

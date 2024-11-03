@@ -2,14 +2,13 @@ import torch.nn as nn
 import torch as tr
 
 
-
 class FC_CharNet(nn.Module):
     def __init__(self,  device, configs):
         super(FC_CharNet, self).__init__()
         self.relu = nn.ReLU(inplace=True)
         self.hidden_size = configs['message_output_dim']
         self.attn = nn.MultiheadAttention(configs['message_output_dim'], num_heads=2)
-        self.fc_board1 = nn.Linear(configs['num_board'] * configs['board_feat'], 1024)
+        self.fc_board1 = nn.Linear(configs['num_loc'] * configs['board_feat'], 1024)
         self.fc_board2 = nn.Linear(1024, 256)
         self.fc_board3 = nn.Linear(256, configs['board_output_dim'])
         self.fc_order1 = nn.Linear(configs['order_feat'], 128)
@@ -31,7 +30,7 @@ class FC_CharNet(nn.Module):
 
         e_char_sum = []
         for p in range(num_past):
-            board_past = board[:, p] # b, num_step, num_loc, num_feature
+            board_past = board[:, p]  # b, num_step, num_loc, num_feature
             board_past = board_past.reshape(b * num_step, -1)
             board_feat = self.relu(self.fc_board1(board_past))
             board_feat = self.relu(self.fc_board2(board_feat))
@@ -65,7 +64,7 @@ class FC_CharNet(nn.Module):
             order_feat = order_feat.permute(2, 0, 1)
             message_feat = message_feat.permute(2, 0, 1)
 
-            x, _ =  self.attn(board_feat, message_feat, order_feat)
+            x, _ = self.attn(board_feat, message_feat, order_feat)
 
             x = x.transpose(1, 0)
 
@@ -92,7 +91,6 @@ class GCN_CharNet(nn.Module):
         self.lstm_board = nn.LSTMCell(162, 162)
         self.fc_board3 = nn.Linear(200 * 162, configs['board_output_dim'])
 
-
         self.fc_order1 = nn.Linear(configs['order_feat'], 128)
         self.fc_order2 = nn.Linear(128, 32)
         self.lstm_order = nn.LSTMCell(32, 32)
@@ -110,8 +108,8 @@ class GCN_CharNet(nn.Module):
         self.device = device
 
     def init_hidden(self, batch_size, hidden_size):
-        return  (tr.zeros(batch_size, hidden_size, device=self.device),
-                 tr.zeros(batch_size, hidden_size, device=self.device))
+        return (tr.zeros(batch_size, hidden_size, device=self.device),
+                tr.zeros(batch_size, hidden_size, device=self.device))
 
     def forward(self, board, order, msg):
         batch_size, num_past, num_step, num_loc, num_obs_feat = board.shape
@@ -123,7 +121,7 @@ class GCN_CharNet(nn.Module):
         e_char_msg = []
         for p in range(num_past):
             hx, cx = self.init_hidden(batch_size, self.board_hidden_size)
-            board_past = board[:, p] # b, s, l, f1
+            board_past = board[:, p]  # b, s, l, f1
             board_feat, _ = self.gnn_board1(board_past, norm_adjacency)
             board_feat, _ = self.gnn_board2(board_feat, norm_adjacency)
             board_feat = board_feat.view(batch_size, num_step, -1)
@@ -153,7 +151,7 @@ class GCN_CharNet(nn.Module):
             e_char_order.append(final_order)
 
             hx, cx = self.init_hidden(batch_size, self.msg_hidden_size)
-            msg_past = msg[:, p] # b, s, l, f1
+            msg_past = msg[:, p]  # b, s, l, f1
             msg_past = msg_past.reshape(batch_size * num_step, -1)
             msg_feat = self.fc_msg1(msg_past)
             msg_feat = self.fc_msg2(msg_feat)
@@ -183,7 +181,7 @@ class GCN_CharNet(nn.Module):
 class Basic_GCN_CharNet(nn.Module):
     def __init__(self, device, configs, norm_adjacency):
         super(Basic_GCN_CharNet, self).__init__()
-        self.hidden_size = 324 + configs['message_output_dim']  + configs['order_output_dim']
+        self.hidden_size = 324 + configs['message_output_dim'] + configs['order_output_dim']
         self.norm_adjacency = norm_adjacency
         self.relu = nn.ReLU(inplace=True)
         self.avgpool = nn.AvgPool1d(8)
@@ -207,8 +205,8 @@ class Basic_GCN_CharNet(nn.Module):
         self.device = device
 
     def init_hidden(self, batch_size, hidden_size):
-        return  (tr.zeros(batch_size, hidden_size, device=self.device),
-                 tr.zeros(batch_size, hidden_size, device=self.device))
+        return (tr.zeros(batch_size, hidden_size, device=self.device),
+                tr.zeros(batch_size, hidden_size, device=self.device))
 
     def forward(self, board, order, msg):
         batch_size, num_past, num_step, num_loc, num_obs_feat = board.shape
@@ -218,7 +216,7 @@ class Basic_GCN_CharNet(nn.Module):
         e_char_sum = []
         for p in range(num_past):
             hx, cx = self.init_hidden(batch_size, self.hidden_size)
-            board_past = board[:, p] # b, s, l, f1
+            board_past = board[:, p]  # b, s, l, f1
             board_feat, _ = self.gnn_board1(board_past, norm_adjacency)
             board_feat, _ = self.gnn_board2(board_feat, norm_adjacency)
             board_feat, _ = self.gnn_board3(board_feat, norm_adjacency)
@@ -256,6 +254,7 @@ class Basic_GCN_CharNet(nn.Module):
         final_e_char = sum(e_char_total)
 
         return final_e_char
+
 
 class GCNLayer(nn.Module):
 

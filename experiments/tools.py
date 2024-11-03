@@ -103,7 +103,7 @@ def make_folder(num_exp):
     now = dt.datetime.now(gettz('Asia/Seoul'))
     year, month, day, hour, minutes, sec = str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second
 
-    foldername = '{}_{}_{}_{}_{}_exp_{}'.format(year, month, day, hour, minutes, num_exp)
+    foldername = '{}_{}_{}_{}_{}_{}_exp_{}'.format(year, month, day, hour, minutes, sec, num_exp)
     folder_dir = './results/{}'.format(foldername)
     if not os.path.exists(folder_dir):
         os.makedirs(folder_dir)

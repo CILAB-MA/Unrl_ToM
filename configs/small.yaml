@@ -1,0 +1,7 @@
+game_type: small
+num_agent: 3
+num_loc: 28
+max_action: 6
+num_step: 100
+num_map_tact: 42
+powers: ['FRANCE', 'GERMANY', 'ITALY']

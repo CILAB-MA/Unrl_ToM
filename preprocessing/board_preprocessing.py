@@ -14,7 +14,7 @@ class BoardMaker:
         self.area_types = static_infos['area_type']
         self.scs = static_infos['scs']
 
-    def make_state(self, obss_dict, n):
+    def make_state(self, obss_dict, n, is_collect =True):
 
         scs = copy.deepcopy(self.scs)
         loc_units = np.zeros((len(self.locs), len(self.units)), dtype=np.int8)  # Unit (A, F, None)
@@ -25,7 +25,8 @@ class BoardMaker:
         loc_area_type = np.zeros((len(self.locs), len(self.units)), dtype=np.int8)  # Unit (A, F, None)
         loc_sc_owners = np.zeros((len(self.locs), self.num_agent + 1), dtype=np.int8)  # Owner (7 + None)
 
-        obss_dict = obss_dict['infos'][n]
+        if is_collect:
+            obss_dict = obss_dict['infos'][n]
 
         for power_name in obss_dict['units']:
             num_build = obss_dict['builds'][power_name]['count']

@@ -1,0 +1,7 @@
+game_type: standard
+num_agent: 7
+num_loc: 81
+max_action: 17
+num_step: 200
+num_map_tact: 120
+powers: ['FRANCE', 'AUSTRIA', 'GERMANY', 'RUSSIA', 'ITALY', 'TURKEY', 'ENGLAND']

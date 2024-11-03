@@ -1,0 +1,7 @@
+game_type: ancmed
+num_agent: 5
+num_loc: 79
+max_action: 34
+num_step: 100  # TODO
+num_map_tact: 124
+powers: ['CARTHAGE', 'EGYPT', 'GREECE', 'PERSIA', 'ROME']

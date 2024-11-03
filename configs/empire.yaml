@@ -1,0 +1,12 @@
+game_type: empire
+num_agent: 10
+num_loc: 177
+max_action: 29
+num_step: 20  # TODO
+num_map_tact: 257
+powers: ['BRITISHCOLUMBIA', 'CALIFORNIA', 'CUBA', 'FLORIDA', 'HEARTLAND', 'MEXICO', 'NEWYORK', 'PERU', 'QUEBEC', 'TEXAS']
+board_feat : 44
+order_feat : 379
+msg_feat : 60
+num_past_step : 80
+curr_send : 58

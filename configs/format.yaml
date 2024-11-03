@@ -1,0 +1,6 @@
+num_agent: len(env.static_infos["powers"]))
+num_loc: len(env.static_infos["locs"])
+max_action: ceil(env.static_infos["scs"] / 2)
+num_step:
+num_map_tact: len(env.static_infos["all_units"])
+powers: list(env.static_infos["powers"].keys())

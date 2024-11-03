@@ -1,5 +1,5 @@
-device="w8"
-
-for number in $(seq 0 99); do
-	python preprocessing/concat_epi_preprocessing.py --proc_dir /data/hoyun_log/preprocess/"$device" -n "$number" -p 1
-done;
+folder_name=$1
+env_type=$2
+data_id=$3
+python preprocessing/concat_epi_preprocessing.py --proc_dir /data/$folder_name/preprocess/$env_type -n $data_id  -p 25 -et $env_type
+python preprocessing/final_preprocessing.py --proc_dir /data/$folder_name/preprocess/$env_type -n $data_id
